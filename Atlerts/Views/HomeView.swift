@@ -448,7 +448,7 @@ struct HomeView: View {
                                 .transition(.opacity)
                             }
                         }
-                        
+                        // MARK: - WYMAN WALL OF SUCCESS
                         // 🔥 BOTÓN ESPECIAL: WALL OF SUCCESS (WYMAN) CON GLOBO ROJO 🔥
                         NavigationLink(destination: SuccessWallView()
                             .onAppear {

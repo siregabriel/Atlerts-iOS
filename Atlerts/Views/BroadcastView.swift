@@ -123,6 +123,8 @@ class BroadcastListViewModel: ObservableObject {
                 }
             }
         }
+        
+        
         // B. SOLO TEXTO
         else {
             saveToFirestore(text: newBroadcastText, user: user, fileUrl: nil, isImage: false)

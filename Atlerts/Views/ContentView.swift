@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseAuth
 import Combine
+import UIKit // 👈 NECESARIO PARA LA SOLUCIÓN DEL TECLADO
 
 // 1. DETECTOR DE SESIÓN
 // Escucha si el usuario está conectado o desconectado en tiempo real.
@@ -45,9 +46,12 @@ struct ContentView: View {
                     .zIndex(1)
             }
         }
-        // ⚠️ HE QUITADO EL .onTapGesture AQUÍ PORQUE BLOQUEABA LA LISTA
+        // 🔥 SOLUCIÓN DEFINITIVA TECLADO 🔥
         .onAppear {
-            // ⏳ TIEMPO DE ESPERA: 3.5 segundos
+            // 1. Activamos el detector global que NO bloquea botones
+            UIApplication.shared.addGlobalKeyboardDismissal()
+            
+            // 2. Lógica original del Splash (3.5 segundos)
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
                 withAnimation(.easeOut(duration: 0.5)) {
                     self.showSplash = false
@@ -114,11 +118,24 @@ struct MainTabView: View {
 }
 
 // ---------------------------------------------------------
-// 🔥 EXTENSIÓN PARA OCULTAR EL TECLADO
-// (La dejamos aquí por si la usamos puntualmente en otro lado, pero ya no afecta globalmente)
+// 🔥 EXTENSIÓN POTENTE PARA OCULTAR EL TECLADO
 // ---------------------------------------------------------
 extension UIApplication {
+    // Función simple para llamar manualmente si se necesita
     func endEditing() {
         sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
+    // 🔥 LA SOLUCIÓN MAESTRA:
+    // Agrega un gesto a toda la ventana que cierra el teclado pero DEJA PASAR los clics a los botones.
+    func addGlobalKeyboardDismissal() {
+        guard let windowScene = connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return }
+        
+        let tapGesture = UITapGestureRecognizer(target: window, action: #selector(UIView.endEditing))
+        tapGesture.cancelsTouchesInView = false // 👈 ESTO ES LO QUE ARREGLA LAS FLECHAS
+        tapGesture.requiresExclusiveTouchType = false
+        
+        window.addGestureRecognizer(tapGesture)
     }
 }

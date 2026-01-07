@@ -24,14 +24,14 @@ let sampleMessages: [MockMessage] = [
     MockMessage(isFromCurrentUser: true, textContent: "Got it", hasImage: false),
     MockMessage(isFromCurrentUser: true, textContent: nil, hasImage: true) // Mensaje que es solo imagen
 ]
-
+// MARK: - BURBUJA
 // --- 2. COMPONENTE: LA BURBUJA DEL MENSAJE ---
 struct MessageBubbleView: View {
     let message: MockMessage
     
     var body: some View {
         HStack {
-            // Truco de alineación: Si es MÍO, pongo un Spacer a la izquierda para empujarlo a la derecha.
+            // Truco de alineación: Si es MÍO, pongo un Spacer a la izquierda para empujarlo a la derecha
             if message.isFromCurrentUser { Spacer() }
             
             VStack(alignment: message.isFromCurrentUser ? .trailing : .leading, spacing: 8) {

@@ -49,6 +49,8 @@ class ChatScreenViewModel: ObservableObject {
         guard let fromId = Auth.auth().currentUser?.uid, let toId = user.uid, !text.isEmpty else { return }
         let conversationId = fromId < toId ? "\(fromId)_\(toId)" : "\(toId)_\(fromId)"
         let msg = ChatMessage(fromId: fromId, toId: toId, text: text, timestamp: Date())
+        // Dentro de sendMessage()
+        Haptics.shared.play(.medium) // 👈 Un golpe firme al enviar
         
         do {
             try db.collection("conversations")
@@ -116,6 +118,10 @@ struct ChatView: View {
                             withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
                         }
                     }
+                }
+                
+                .onTapGesture {
+                    UIApplication.shared.endEditing()
                 }
                 
                 // 2. BARRA DE ESCRITURA (Diseño arreglado)
