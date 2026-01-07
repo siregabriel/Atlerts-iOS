@@ -2,7 +2,7 @@
 //  ChatView.swift
 //  Atlerts
 //
-//  Created by Gabriel Rosales Montes  on 03/01/26.
+//  Created by Gabriel Rosales Montes on 03/01/26.
 //
 import SwiftUI
 import FirebaseFirestore
@@ -32,10 +32,7 @@ class ChatScreenViewModel: ObservableObject {
     }
     
     func fetchMessages() {
-        // CORRECCIÓN 1: Usamos 'toId' en el guard y lo usamos abajo para que no de warning
         guard let fromId = Auth.auth().currentUser?.uid, let toId = user.uid else { return }
-        
-        // Usamos toId directamente en lugar de volver a llamar a user.uid
         let conversationId = fromId < toId ? "\(fromId)_\(toId)" : "\(toId)_\(fromId)"
         
         db.collection("conversations")
@@ -49,11 +46,8 @@ class ChatScreenViewModel: ObservableObject {
     }
     
     func sendMessage() {
-        // CORRECCIÓN 2: Lo mismo aquí, limpiamos la variable no usada
         guard let fromId = Auth.auth().currentUser?.uid, let toId = user.uid, !text.isEmpty else { return }
-        
         let conversationId = fromId < toId ? "\(fromId)_\(toId)" : "\(toId)_\(fromId)"
-        
         let msg = ChatMessage(fromId: fromId, toId: toId, text: text, timestamp: Date())
         
         do {
@@ -61,7 +55,6 @@ class ChatScreenViewModel: ObservableObject {
                 .document(conversationId)
                 .collection("messages")
                 .addDocument(from: msg)
-            
             self.text = ""
         } catch {
             print("Error enviando mensaje: \(error)")
@@ -69,10 +62,29 @@ class ChatScreenViewModel: ObservableObject {
     }
 }
 
+// 🔥 FORMA PERSONALIZADA PARA EL PICO DEL GLOBO
+struct ChatBubbleShape: Shape {
+    let isCurrentUser: Bool
+    
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: [
+                .topLeft,
+                .topRight,
+                isCurrentUser ? .bottomLeft : .bottomRight // Redondeamos la esquina contraria al pico
+            ],
+            cornerRadii: CGSize(width: 16, height: 16)
+        )
+        return Path(path.cgPath)
+    }
+}
+
 // 3. VISTA DEL CHAT
 struct ChatView: View {
     let user: AtlertsUser
     @StateObject var viewModel: ChatScreenViewModel
+    @Environment(\.presentationMode) var presentationMode
     
     init(user: AtlertsUser) {
         self.user = user
@@ -80,75 +92,107 @@ struct ChatView: View {
     }
     
     var body: some View {
-        VStack {
-            // LISTA DE MENSAJES
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.messages) { message in
-                            MessageRow(message: message)
-                        }
-                    }
-                    .padding()
-                }
-                // CORRECCIÓN 3: Sintaxis compatible con iOS 17 para quitar el warning amarillo
-                // Usamos "old, new in" (o _, _ in)
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    if let lastId = viewModel.messages.last?.id {
-                        withAnimation {
-                            proxy.scrollTo(lastId, anchor: .bottom)
-                        }
-                    }
-                }
-            }
+        ZStack {
+            // 1. Fondo Blanco Absoluto
+            Color.white.ignoresSafeArea()
             
-            // ÁREA DE TEXTO
-            HStack {
-                TextField("Escribe un mensaje...", text: $viewModel.text)
-                    .padding(12)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(20)
+            VStack(spacing: 0) {
+                // Header manual para asegurar estilo
+                /* Nota: Como usamos navigationBarTitleDisplayMode, el sistema pone el header.
+                   Si prefieres uno custom, avísame. Por ahora confiamos en el nativo pero forzado a light. */
                 
-                Button(action: viewModel.sendMessage) {
-                    Image(systemName: "paperplane.fill")
-                        .foregroundColor(.white)
-                        .padding(10)
-                        .background(Color.blue)
-                        .clipShape(Circle())
+                // LISTA DE MENSAJES
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(viewModel.messages) { message in
+                                MessageRow(message: message)
+                            }
+                        }
+                        .padding()
+                    }
+                    .onChange(of: viewModel.messages.count) { _, _ in
+                        if let lastId = viewModel.messages.last?.id {
+                            withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
+                        }
+                    }
                 }
-                .disabled(viewModel.text.isEmpty)
+                
+                // 2. BARRA DE ESCRITURA (Diseño arreglado)
+                VStack(spacing: 0) {
+                    Divider() // Línea separadora sutil
+                    HStack(spacing: 12) {
+                        // Campo de texto
+                        ZStack(alignment: .leading) {
+                            if viewModel.text.isEmpty {
+                                Text("Escribe un mensaje...")
+                                    .foregroundColor(.black) // Placeholder GRIS
+                                    .padding(.leading, 18)
+                            }
+                            TextField("", text: $viewModel.text)
+                                .foregroundColor(.black) // Texto que escribes NEGRO
+                                .padding(12)
+                                .padding(.leading, 6)
+                                // 🔥 AQUI ESTABA EL ERROR: Usamos un gris fijo manual, no de sistema
+                                .background(Color(white: 0.95))
+                                .cornerRadius(20)
+                                // Marco sutil opcional
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        }
+                        
+                        // Botón Enviar
+                        Button(action: viewModel.sendMessage) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                        }
+                        .disabled(viewModel.text.isEmpty)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
+                    .background(Color.white) // Fondo de la barra BLANCO
+                }
             }
-            .padding()
-            .background(Color.white)
         }
         .navigationTitle(user.name ?? "Chat")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(UIColor.systemGroupedBackground))
+        .preferredColorScheme(.light) // Fuerza modo claro (Textos negros) en toda la pantalla
     }
 }
 
-// 4. BURBUJA DE MENSAJE
+// 4. BURBUJA DE MENSAJE (Con pico de diálogo)
 struct MessageRow: View {
     let message: ChatMessage
     let currentUid = Auth.auth().currentUser?.uid
     
     var body: some View {
-        HStack {
+        HStack(alignment: .bottom) { // Alineamos abajo para que los picos coincidan
             if message.fromId == currentUid {
+                // --- MI MENSAJE (Derecha) ---
                 Spacer()
                 Text(message.text)
                     .foregroundColor(.white)
-                    .padding()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                     .background(Color.blue)
-                    .cornerRadius(16)
-                    .mask(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    // 🔥 Forma con pico a la derecha
+                    .clipShape(ChatBubbleShape(isCurrentUser: true))
             } else {
+                // --- OTRO MENSAJE (Izquierda) ---
                 Text(message.text)
-                    .foregroundColor(.black)
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    .foregroundColor(.black) // Texto Negro
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    // 🔥 Color Gris Claro Fijo (Color(white: 0.9))
+                    .background(Color(white: 0.90))
+                    // 🔥 Forma con pico a la izquierda
+                    .clipShape(ChatBubbleShape(isCurrentUser: false))
                 Spacer()
             }
         }

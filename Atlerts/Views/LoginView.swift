@@ -7,7 +7,6 @@
 import SwiftUI
 import FirebaseAuth
 
-// 1. CAMBIAMOS EL NOMBRE DE LA ESTRUCTURA A 'LoginView'
 struct LoginView: View {
     // --- 1. VARIABLES DE ANIMACIÓN ---
     @State private var startAnimation = false
@@ -18,37 +17,49 @@ struct LoginView: View {
     // --- 2. VARIABLES DE DATOS Y SEGURIDAD ---
     @State private var emailText = ""
     @State private var passwordText = ""
-    // Borramos isLoggedIn de aquí, porque RootView lo controlará desde fuera
     @State private var loginError = ""
     @State private var showErrorMessage = false
     
     var body: some View {
         ZStack {
-            // A. FONDO (Común para todo)
-            Color(hex: "0f2027")
+            // =================================================
+            // A. FONDO NUEVO (Imagen + Capa Oscura) 🖼️
+            // =================================================
+            Image("atlerts-app-home-background") // Misma imagen que el Home
+                .resizable()
+                .scaledToFill()
                 .ignoresSafeArea()
             
+            Color.black.opacity(0.6) // Capa oscura para que resalten los textos
+                .ignoresSafeArea()
+            
+            // =================================================
             // B. FORMULARIO DE LOGIN (Aparece detrás del splash)
+            // =================================================
             VStack(spacing: 25) {
                 
                 // Logo estático superior
                 VStack(spacing: 15) {
-                    Image("atlas-globe-icon-large") // O systemName: "shield.check.fill"
+                    Image("atlas-globe-icon-large")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 100, height: 100)
                         .foregroundColor(.white)
+                        .padding(.top, 60)
                     
-                    Text("Atlerts")
-                        .font(.system(size: 28, weight: .bold, design: .default))
-                        .foregroundColor(.white)
+                    Image("atlerts-name-logo")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(height: 40)
+                                //.shimmering(duration: 2.0)
+                                .magicalSparkles()
                 }
                 .padding(.top, 60)
                 
                 HStack {
                     Text(" by Atlas Senior Living")
-                        .foregroundColor(Color.white.opacity(0.5))
-                        .fontWeight(.bold)
+                        .foregroundColor(Color.white.opacity(0.9)) // Un poco más visible
+                        .fontWeight(.regular)
                         .font(.system(size: 16, design: .default))
                 }
                 
@@ -62,6 +73,9 @@ struct LoginView: View {
                         .fontWeight(.bold)
                         .padding(.horizontal)
                         .multilineTextAlignment(.center)
+                        .padding(10)
+                        .background(Color.black.opacity(0.6)) // Fondo negro suave para el error
+                        .cornerRadius(8)
                 }
                 
                 // Campos de Texto
@@ -71,17 +85,25 @@ struct LoginView: View {
                         TextField("Email (corporate)", text: $emailText)
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
+                            // 🔥 Esto hace que el placeholder sea gris oscuro (legible)
                             .colorScheme(.light)
+                            .foregroundColor(.black)
                     }
                     .padding()
                     .background(Color.white).cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2) // Sombra suave
                     
                     HStack {
                         Image(systemName: "lock.fill").foregroundColor(.gray)
                         SecureField("Password", text: $passwordText)
+                            // 🔥 CORRECCIÓN AQUÍ: Agregamos colorScheme(.light)
+                            // Esto fuerza a que el placeholder "Password" sea oscuro, no blanco.
+                            .colorScheme(.light)
+                            .foregroundColor(.black)
                     }
                     .padding()
                     .background(Color.white).cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 2) // Sombra suave
                 }
                 .padding(.horizontal, 30)
                 
@@ -93,38 +115,52 @@ struct LoginView: View {
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
+                        .background(Color.blue) // Color de acento de Atlas
                         .foregroundColor(.white)
                         .cornerRadius(12)
+                        .shadow(color: Color.blue.opacity(0.4), radius: 10, x: 0, y: 5) // Glow sutil
                 }
                 .padding(.horizontal, 30)
                 
                 Spacer()
                 
                 HStack {
-                    Text("¿Not account yet? Contact admin to get started.")
+                    Text("Don't have an account?\nContact support")
                         .foregroundColor(Color.white.opacity(0.9))
                         .fontWeight(.bold)
                         .padding(40)
                         .font(Font.system(size: 15, design: .default))
                         .multilineTextAlignment(.center)
+                        .shadow(color: Color.black, radius: 2, x: 0, y: 1) // Sombra texto
                 }
                 
-                Text("2026 Made with love from the Digital Marketing Team.")
-                    .font(.system(size: 12, design: .default))
-                    .foregroundColor(.white.opacity(0.6))
-                    .padding(.bottom, 20)
-            }
+                    Text("2026 Made with 🩵 by the Atlas Digital Marketing Team\nV. 0.9 Build 1")
+                        .font(.system(size: 11, design: .default))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.bottom, 40)
+                        .multilineTextAlignment(.center)
+                }
+            
+            
             .opacity(endSplash ? 1 : 0) // Solo se ve cuando termina el splash
             
             
+            // =================================================
             // C. PANTALLA SPLASH (Capa superior animada)
+            // =================================================
             if !endSplash {
                 ZStack {
-                    LinearGradient(gradient: Gradient(colors: [Color(hex: "0f2027"), Color(hex: "203a43"), Color(hex: "2c5364")]),
-                                   startPoint: .top,
-                                   endPoint: .bottom)
-                    .ignoresSafeArea()
+                    // Mantenemos el degradado original o lo cambiamos a negro
+                    // para que la transición sea "Fade out" hacia la foto
+                    Color.black
+                        .ignoresSafeArea()
+                    
+                    // Si prefieres que el splash TAMBIÉN tenga la foto de fondo,
+                    // descomenta las siguientes 3 líneas y borra el Color.black de arriba:
+                    /*
+                    Image("atlerts-app-home-background").resizable().scaledToFill().ignoresSafeArea()
+                    Color.black.opacity(0.3).ignoresSafeArea()
+                    */
                     
                     VStack(spacing: 10) {
                         ZStack {
@@ -141,12 +177,9 @@ struct LoginView: View {
                                 .scaleEffect(startAnimation ? 1 : 0.5)
                                 .opacity(startAnimation ? 1 : 0)
                             
-                            // Sello 18+
                             VStack {
                                 Spacer()
-                                HStack {
-                                    Spacer()
-                                }
+                                HStack { Spacer() }
                             }
                             .frame(width: 140, height: 140)
                         }
@@ -158,28 +191,26 @@ struct LoginView: View {
                 .zIndex(1)
             }
         }
-        // ELIMINAMOS EL .fullScreenCover Y EL SIGN OUT AL INICIO PARA QUE NO CIERRE SESIÓN SOLO
         .onAppear {
-             ejecutarSecuencia()
+            ejecutarSecuencia()
         }
+        // Fuerza el estilo general a oscuro (para barra de estado blanca),
+        // pero los TextFields los forzamos a Light individualmente arriba.
+        .preferredColorScheme(.dark)
     }
     
     // --- 3. LÓGICA DE SEGURIDAD ---
     func intentarLogin() {
-        // 1. Validar campos vacíos
         if emailText.isEmpty || passwordText.isEmpty {
             loginError = "Please fill in all fields."
             withAnimation { showErrorMessage = true }
             return
         }
         
-        // 2. Consultar a Firebase
         AuthManager.shared.login(email: emailText, pass: passwordText) { success, errorMsg in
             if success {
                 print("✅ Correct login")
                 showErrorMessage = false
-                // YA NO NECESITAMOS HACER NADA MÁS.
-                // Firebase le avisará a RootView automáticamente.
             } else {
                 print("❌ Incorrect login")
                 loginError = "Error: \(errorMsg ?? "Invalid credentials")"
@@ -199,8 +230,9 @@ struct LoginView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             withAnimation { showText = true }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
-            withAnimation(.easeInOut(duration: 0.6)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            // Hacemos que el splash desaparezca suavemente revelando el login
+            withAnimation(.easeInOut(duration: 0.8)) {
                 endSplash = true
             }
         }

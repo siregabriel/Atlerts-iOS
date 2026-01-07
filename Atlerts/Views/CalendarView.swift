@@ -131,7 +131,7 @@ struct CalendarView: View {
                 
                 // LISTA DE EVENTOS DEL DÍA
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Eventos para el \(viewModel.selectedDate, style: .date)")
+                    Text("Events for \(viewModel.selectedDate, style: .date)")
                         .font(.headline).foregroundColor(.gray).padding(.horizontal)
                     
                     let dayEvents = viewModel.eventsForSelectedDate()
@@ -140,7 +140,7 @@ struct CalendarView: View {
                         Spacer()
                         VStack(spacing: 10) {
                             Image(systemName: "calendar.badge.exclamationmark").font(.largeTitle).foregroundColor(.gray.opacity(0.3))
-                            Text("Sin eventos").foregroundColor(.gray)
+                            Text("No events scheduled for this day").foregroundColor(.gray)
                         }
                         .frame(maxWidth: .infinity)
                         Spacer()
@@ -170,7 +170,7 @@ struct CalendarView: View {
                     }
                 }
             }
-            .navigationTitle("Calendario")
+            .navigationTitle("Events")
             .navigationBarTitleDisplayMode(.inline)
             // ESTA ES LA HOJA DE DETALLE QUE SE ABRE AL TOCAR
             .sheet(item: $selectedEvent) { event in

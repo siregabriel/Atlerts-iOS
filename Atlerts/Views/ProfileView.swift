@@ -4,13 +4,15 @@ import FirebaseFirestore
 import FirebaseStorage
 import Combine
 
-// 1. VIEW MODEL (Mantenemos el nombre único para evitar conflictos)
+// 1. VIEW MODEL
 class UserProfileViewModel: ObservableObject {
     @Published var user: AtlertsUser?
     @Published var isLoading = false
     @Published var errorMessage = ""
     @Published var showAlert = false
     @Published var alertMessage = ""
+    
+    @State private var showChangePassword = false
     
     private var db = Firestore.firestore()
     
@@ -25,7 +27,6 @@ class UserProfileViewModel: ObservableObject {
         }
     }
     
-    // LA LÓGICA DE SUBIDA DE IMAGEN (ARREGLADA)
     func saveProfileImage(image: UIImage) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         isLoading = true
@@ -61,9 +62,7 @@ class UserProfileViewModel: ObservableObject {
     
     func deleteAccount() {
         guard let user = Auth.auth().currentUser else { return }
-        // Borramos el documento de usuario primero
         db.collection("users").document(user.uid).delete { _ in
-            // Luego borramos la cuenta de autenticación
             user.delete { error in
                 if let error = error {
                     self.alertMessage = "Error: \(error.localizedDescription)"
@@ -78,12 +77,14 @@ class UserProfileViewModel: ObservableObject {
     }
 }
 
-// 2. VISTA (DISEÑO RESTAURADO Y MEJORADO)
+// 2. VISTA (DISEÑO ORIGINAL CON MEJORA DE IMAGEN)
 struct ProfileView: View {
     @StateObject var viewModel = UserProfileViewModel()
     @State private var showImagePicker = false
     @State private var selectedImage: UIImage?
     @State private var showDeleteAlert = false
+    
+    @State private var showChangePassword = false
     
     var body: some View {
         NavigationView {
@@ -91,9 +92,10 @@ struct ProfileView: View {
                 Color(UIColor.systemGroupedBackground).ignoresSafeArea()
                 
                 if viewModel.isLoading {
-                    ProgressView("Actualizando perfil...")
+                    ProgressView("Updating...")
                         .padding()
-                        .background(Color.white)
+                        .foregroundColor(.black)
+                        .background(Color.white.opacity(0.5))
                         .cornerRadius(10)
                         .shadow(radius: 5)
                         .zIndex(1)
@@ -103,43 +105,79 @@ struct ProfileView: View {
                     // SECCIÓN 1: CABECERA DE PERFIL
                     Section {
                         VStack(spacing: 15) {
-                            // FOTO
+                            // FOTO DE PERFIL
                             Button {
                                 showImagePicker = true
                             } label: {
                                 ZStack {
+                                    // 1. SI EL USUARIO ACABA DE ELEGIR UNA FOTO DE SU CÁMARA
                                     if let image = selectedImage {
                                         Image(uiImage: image)
-                                            .resizable().scaledToFill()
-                                            .frame(width: 100, height: 100).clipShape(Circle())
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 110, height: 110)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white, lineWidth: 4))
+                                            .shadow(radius: 5)
+                                    
+                                    // 2. SI HAY URL EN FIREBASE (AQUÍ ESTÁ LA MEJORA)
                                     } else if let urlStr = viewModel.user?.profileImageURL, let url = URL(string: urlStr) {
-                                        AsyncImage(url: url) { image in
-                                            image.resizable().scaledToFill()
-                                        } placeholder: {
-                                            Color.gray.opacity(0.3)
+                                        
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                // CARGANDO (Spinner)
+                                                ZStack {
+                                                    Color(UIColor.systemGray6)
+                                                    ProgressView()
+                                                }
+                                            case .success(let image):
+                                                // ÉXITO (Fade-in)
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .transition(.opacity.animation(.easeOut(duration: 0.5)))
+                                            case .failure:
+                                                // ERROR
+                                                Image(systemName: "person.circle.fill")
+                                                    .resizable()
+                                                    .foregroundColor(.gray)
+                                            @unknown default:
+                                                EmptyView()
+                                            }
                                         }
-                                        .frame(width: 100, height: 100).clipShape(Circle())
+                                        .frame(width: 110, height: 110)
+                                        .clipShape(Circle())
+                                        // ✨ EL BORDE BLANCO ELEGANTE
+                                        .overlay(Circle().stroke(Color.white, lineWidth: 4))
+                                        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 5)
+
+                                    // 3. SI NO HAY NADA (DEFAULT)
                                     } else {
                                         Image(systemName: "person.circle.fill")
-                                            .resizable().foregroundColor(.gray)
-                                            .frame(width: 100, height: 100)
+                                            .resizable()
+                                            .foregroundColor(.gray)
+                                            .frame(width: 110, height: 110)
+                                            .overlay(Circle().stroke(Color.white, lineWidth: 4))
+                                            .shadow(radius: 5)
                                     }
                                     
-                                    // Icono cámara
+                                    // ICONO DE CÁMARA (TU ESTILO ORIGINAL)
                                     Image(systemName: "camera.fill")
                                         .font(.caption)
                                         .foregroundColor(.white)
                                         .padding(8)
                                         .background(Color.blue)
                                         .clipShape(Circle())
-                                        .offset(x: 35, y: 35)
+                                        .offset(x: 38, y: 38) // Ajustado ligeramente para el nuevo tamaño
+                                        .shadow(radius: 2)
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
                             
-                            // DATOS
+                            // DATOS DEL USUARIO
                             VStack(spacing: 5) {
-                                Text(viewModel.user?.name ?? "Cargando...")
+                                Text(viewModel.user?.name ?? "Loading...")
                                     .font(.title2)
                                     .fontWeight(.bold)
                                 
@@ -147,7 +185,7 @@ struct ProfileView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                                 
-                                // BADGE DE ROL (Restaurado)
+                                // BADGE DE ROL
                                 if let role = viewModel.user?.role {
                                     HStack(spacing: 4) {
                                         Image(systemName: role == "moderator" ? "shield.fill" : "person.fill")
@@ -167,13 +205,13 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                     }
-                    .listRowBackground(Color.clear) // Fondo transparente para que se vea limpio
+                    .listRowBackground(Color.clear)
                     
-                    // SECCIÓN 2: INFORMACIÓN CORPORATIVA
-                    Section(header: Text("Información")) {
+                    // SECCIÓN 2: INFORMACIÓN
+                    Section(header: Text("Information")) {
                         HStack {
                             Image(systemName: "building.2.fill").foregroundColor(.blue)
-                            Text("Comunidad")
+                            Text("Community")
                             Spacer()
                             Text(viewModel.user?.community ?? "Sin asignar").foregroundColor(.secondary)
                         }
@@ -186,12 +224,41 @@ struct ProfileView: View {
                         }
                     }
                     
-                    // SECCIÓN 3: ZONA DE PELIGRO Y SESIÓN
+                    // Opción: Acerca de
+                    NavigationLink(destination: AboutView()) {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                                .frame(width: 25)
+                            Text("About this App")
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                    }
+                    
+                    // SECCIÓN 3: ACCIONES
+                    Button(action: { showChangePassword = true }) {
+                        HStack {
+                            Image(systemName: "lock.rotation")
+                                .foregroundColor(.blue)
+                                .frame(width: 25)
+                            Text("Change Password")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.gray)
+                                .font(.caption)
+                        }
+                    }
+                    .sheet(isPresented: $showChangePassword) {
+                        ChangePasswordView()
+                    }
+                    
                     Section {
                         Button(action: { viewModel.logout() }) {
                             HStack {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                                Text("Cerrar Sesión")
+                                Text("Logout")
                             }
                             .foregroundColor(.red)
                         }
@@ -199,14 +266,14 @@ struct ProfileView: View {
                         Button(action: { showDeleteAlert = true }) {
                             HStack {
                                 Image(systemName: "trash")
-                                Text("Eliminar Cuenta")
+                                Text("Delete account")
                             }
                             .foregroundColor(.red)
                         }
                     }
                 }
             }
-            .navigationTitle("Mi Perfil")
+            .navigationTitle("Profile")
             .sheet(isPresented: $showImagePicker) {
                 ProfileImagePicker(image: $selectedImage)
                     .onDisappear {
@@ -217,9 +284,9 @@ struct ProfileView: View {
             }
             .alert(isPresented: $showDeleteAlert) {
                 Alert(
-                    title: Text("¿Eliminar cuenta?"),
-                    message: Text("Esta acción no se puede deshacer. Perderás acceso a la app."),
-                    primaryButton: .destructive(Text("Eliminar")) {
+                    title: Text("¿Delete account?"),
+                    message: Text("This action cannot be undone. You will lose access to the app."),
+                    primaryButton: .destructive(Text("Delete")) {
                         viewModel.deleteAccount()
                     },
                     secondaryButton: .cancel()
@@ -229,7 +296,7 @@ struct ProfileView: View {
     }
 }
 
-// 3. IMAGE PICKER (Mantenemos el nombre único)
+// 3. IMAGE PICKER
 struct ProfileImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     func makeUIViewController(context: Context) -> UIImagePickerController {

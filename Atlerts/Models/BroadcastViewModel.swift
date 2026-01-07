@@ -10,6 +10,7 @@ import FirebaseAuth
 import FirebaseStorage // Necesario para subir fotos
 import UIKit
 import Combine
+import AudioToolbox
 
 class BroadcastViewModel: ObservableObject {
     @Published var broadcasts: [BroadcastMessage] = []

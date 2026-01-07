@@ -23,10 +23,10 @@ struct DocumentsView: View {
                         Image(systemName: "folder.badge.questionmark")
                             .font(.system(size: 50))
                             .foregroundColor(.gray)
-                        Text("No hay documentos disponibles")
+                        Text("No documents available")
                             .font(.headline)
                             .foregroundColor(.gray)
-                        Text("Los archivos que subas al Admin aparecerán aquí para todos.")
+                        Text("The files you upload to the Admin will appear here for everyone.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -60,7 +60,7 @@ struct DocumentsView: View {
                                                 if let date = doc.timestamp?.dateValue() {
                                                     Text(date.formatted(date: .abbreviated, time: .omitted))
                                                 } else {
-                                                    Text("Reciente")
+                                                    Text("Recient")
                                                 }
                                                 Text("• PDF")
                                             }
@@ -90,7 +90,7 @@ struct DocumentsView: View {
                     }
                 }
             }
-            .navigationTitle("Documentos") // Título en español
+            .navigationTitle("Documents") // Título en español
             .onAppear {
                 viewModel.fetchDocuments()
             }

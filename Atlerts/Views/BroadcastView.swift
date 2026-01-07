@@ -3,8 +3,10 @@ import FirebaseFirestore
 import FirebaseAuth
 import FirebaseStorage
 import Combine
+import AudioToolbox
+import AVFoundation
 
-// 1. MODELO DE DATOS (MODO MANUAL)
+// 1. MODELO DE DATOS (ACTUALIZADO PARA ARCHIVOS)
 struct BroadcastItem: Identifiable {
     let id: String
     let text: String
@@ -12,6 +14,20 @@ struct BroadcastItem: Identifiable {
     let role: String
     let timestamp: Date
     let imageUrl: String?
+    
+    // 🔥 NUEVOS CAMPOS PARA ARCHIVOS
+    let fileUrl: String?
+    let fileName: String?
+    let fileType: String?
+    
+    // Ayuda a saber si es imagen o doc
+    var isImage: Bool {
+        if let type = fileType, type.starts(with: "image/") { return true }
+        if let url = imageUrl ?? fileUrl {
+            return url.lowercased().contains(".jpg") || url.lowercased().contains(".png") || url.lowercased().contains(".jpeg")
+        }
+        return false
+    }
 }
 
 // 2. VIEW MODEL
@@ -21,6 +37,8 @@ class BroadcastListViewModel: ObservableObject {
     @Published var selectedImage: UIImage?
     @Published var isSending = false
     
+    var audioPlayer: AVAudioPlayer?
+    private var isFirstLoad = true
     private var db = Firestore.firestore()
     
     init() { fetchBroadcasts() }
@@ -29,13 +47,17 @@ class BroadcastListViewModel: ObservableObject {
         db.collection("broadcasts").order(by: "timestamp", descending: true).addSnapshotListener { snap, _ in
             guard let docs = snap?.documents else { return }
             
-            // MAPEO MANUAL
-            self.broadcasts = docs.compactMap { doc in
+            let fetchedBroadcasts = docs.compactMap { doc -> BroadcastItem? in
                 let data = doc.data()
                 let text = data["text"] as? String ?? ""
                 let sender = data["senderName"] as? String ?? "Usuario"
                 let role = data["role"] as? String ?? "client"
                 let imgUrl = data["imageUrl"] as? String
+                
+                // 🔥 RECUPERAMOS LOS DATOS DEL ARCHIVO
+                let fileUrl = data["fileUrl"] as? String
+                let fileName = data["fileName"] as? String
+                let fileType = data["fileType"] as? String
                 
                 let date: Date
                 if let timestamp = data["timestamp"] as? Timestamp {
@@ -50,9 +72,30 @@ class BroadcastListViewModel: ObservableObject {
                     senderName: sender,
                     role: role,
                     timestamp: date,
-                    imageUrl: imgUrl
+                    imageUrl: imgUrl,
+                    fileUrl: fileUrl,     // Nuevo
+                    fileName: fileName,   // Nuevo
+                    fileType: fileType    // Nuevo
                 )
             }
+            
+            // SONIDO ALERTA
+            if !self.isFirstLoad && fetchedBroadcasts.count > self.broadcasts.count {
+                self.reproducirSonidoPersonalizado()
+            }
+            
+            self.broadcasts = fetchedBroadcasts
+            self.isFirstLoad = false
+        }
+    }
+    
+    func reproducirSonidoPersonalizado() {
+        if let soundURL = Bundle.main.url(forResource: "alerta", withExtension: "mp3") {
+            do {
+                audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
+                audioPlayer?.prepareToPlay()
+                audioPlayer?.play()
+            } catch { print("Error sonido: \(error)") }
         }
     }
     
@@ -62,31 +105,31 @@ class BroadcastListViewModel: ObservableObject {
         
         isSending = true
         
-        // A. CON IMAGEN
+        // A. CON IMAGEN (DESDE MÓVIL SOLO IMÁGENES POR AHORA)
         if let image = selectedImage, let imageData = image.jpegData(compressionQuality: 0.5) {
             let filename = UUID().uuidString
             let ref = Storage.storage().reference(withPath: "broadcast_images/\(filename).jpg")
             
             ref.putData(imageData, metadata: nil) { _, error in
                 if let error = error {
-                    print("Error subiendo: \(error)")
+                    print("Error: \(error)")
                     self.isSending = false
                     return
                 }
-                
                 ref.downloadURL { url, _ in
                     guard let downloadUrl = url else { return }
-                    self.saveToFirestore(text: self.newBroadcastText, user: user, imageUrl: downloadUrl.absoluteString)
+                    // Al subir desde móvil, lo tratamos como imagen
+                    self.saveToFirestore(text: self.newBroadcastText, user: user, fileUrl: downloadUrl.absoluteString, isImage: true)
                 }
             }
         }
         // B. SOLO TEXTO
         else {
-            saveToFirestore(text: newBroadcastText, user: user, imageUrl: nil)
+            saveToFirestore(text: newBroadcastText, user: user, fileUrl: nil, isImage: false)
         }
     }
     
-    private func saveToFirestore(text: String, user: User, imageUrl: String?) {
+    private func saveToFirestore(text: String, user: User, fileUrl: String?, isImage: Bool) {
         db.collection("users").document(user.uid).getDocument { snap, _ in
             let name = snap?.data()?["name"] as? String ?? "Usuario"
             let role = snap?.data()?["role"] as? String ?? "client"
@@ -98,8 +141,13 @@ class BroadcastListViewModel: ObservableObject {
                 "timestamp": Timestamp(date: Date())
             ]
             
-            if let url = imageUrl {
-                data["imageUrl"] = url
+            if let url = fileUrl {
+                data["imageUrl"] = url // Compatibilidad
+                data["fileUrl"] = url
+                if isImage {
+                    data["fileType"] = "image/jpeg"
+                    data["fileName"] = "image_mobile.jpg"
+                }
             }
             
             self.db.collection("broadcasts").addDocument(data: data) { error in
@@ -107,9 +155,6 @@ class BroadcastListViewModel: ObservableObject {
                     self.newBroadcastText = ""
                     self.selectedImage = nil
                     self.isSending = false
-                    
-                    // 🔥 ¡AQUÍ ESTÁ LA VIBRACIÓN DE ÉXITO! 🔥
-                    hapticSuccess()
                 }
             }
         }
@@ -138,22 +183,48 @@ struct BroadcastView: View {
                             Text(msg.text).font(.body)
                         }
                         
-                        if let urlStr = msg.imageUrl, let url = URL(string: urlStr) {
-                            AsyncImage(url: url) { image in
-                                image.resizable().scaledToFit().cornerRadius(10)
-                            } placeholder: {
-                                ZStack {
-                                    Color.gray.opacity(0.1)
-                                    ProgressView()
-                                }.frame(height: 150)
+                        // 🔥 LOGICA INTELIGENTE DE ARCHIVOS 🔥
+                        if let fileUrl = msg.fileUrl ?? msg.imageUrl, let url = URL(string: fileUrl) {
+                            
+                            if msg.isImage {
+                                // CASO A: ES UNA IMAGEN -> MOSTRARLA
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFit().cornerRadius(10)
+                                } placeholder: {
+                                    ZStack { Color.gray.opacity(0.1); ProgressView() }.frame(height: 150)
+                                }
+                                .frame(maxHeight: 250)
+                                .onTapGesture {
+                                    // Opcional: Abrir imagen en pantalla completa si quieres
+                                }
+                            } else {
+                                // CASO B: ES UN DOCUMENTO (PDF, DOC, EXCEL) -> BOTÓN
+                                Link(destination: url) {
+                                    HStack {
+                                        Image(systemName: "doc.text.fill")
+                                            .font(.title2)
+                                        VStack(alignment: .leading) {
+                                            Text(msg.fileName ?? "Attachment")
+                                                .font(.headline)
+                                                .lineLimit(1)
+                                            Text("Tap to view or download")
+                                                .font(.caption)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "arrow.up.right.square")
+                                    }
+                                    .padding()
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(10)
+                                    .foregroundColor(.blue)
+                                }
                             }
-                            .frame(maxHeight: 250)
                         }
                     }
                     .padding(.vertical, 4)
                 }
                 
-                // INPUT AREA
+                // INPUT AREA (Sin cambios, solo envía imágenes desde móvil)
                 VStack(spacing: 0) {
                     if let img = viewModel.selectedImage {
                         HStack {
@@ -172,20 +243,15 @@ struct BroadcastView: View {
                         }
                         .padding(.bottom, 8)
                         
-                        TextField("Escribe un aviso...", text: $viewModel.newBroadcastText, axis: .vertical)
+                        TextField("Write an announcement...", text: $viewModel.newBroadcastText, axis: .vertical)
                             .padding(10)
                             .background(Color(UIColor.secondarySystemBackground))
                             .cornerRadius(20)
                         
                         if viewModel.isSending {
-                            ProgressView()
-                                .padding(.bottom, 8)
+                            ProgressView().padding(.bottom, 8)
                         } else {
-                            // 🔥 AQUÍ ESTÁ EL BOTÓN CON VIBRACIÓN 🔥
-                            Button(action: {
-                                haptic(.medium) // Vibración al tocar
-                                viewModel.sendBroadcast()
-                            }) {
+                            Button(action: { viewModel.sendBroadcast() }) {
                                 Image(systemName: "paperplane.fill")
                                     .font(.title2)
                                     .foregroundColor((!viewModel.newBroadcastText.isEmpty || viewModel.selectedImage != nil) ? .blue : .gray)
@@ -199,10 +265,75 @@ struct BroadcastView: View {
                 .background(Color(UIColor.systemBackground))
                 .shadow(radius: 2)
             }
-            .navigationTitle("Avisos")
+            .navigationTitle("Broadcast")
             .sheet(isPresented: $showImagePicker) {
                 BroadcastPhotoPicker(image: $viewModel.selectedImage)
             }
+        }
+    }
+}
+// ATTACHMENT VIEW
+struct AttachmentView: View {
+    let fileUrl: String?
+    let fileName: String?
+    let fileType: String?
+    let imageUrl: String? // Por compatibilidad
+
+    // Ayuda a saber si es imagen o doc
+    var isImage: Bool {
+        if let type = fileType, type.starts(with: "image/") { return true }
+        if let url = imageUrl ?? fileUrl {
+            return url.lowercased().contains(".jpg") || url.lowercased().contains(".png") || url.lowercased().contains(".jpeg")
+        }
+        return false
+    }
+
+    var body: some View {
+        if let link = fileUrl ?? imageUrl, let url = URL(string: link) {
+            Group {
+                if isImage {
+                    // MODO FOTO
+                    AsyncImage(url: url) { image in
+                        image.resizable().scaledToFit().cornerRadius(12)
+                    } placeholder: {
+                        ZStack { Color.gray.opacity(0.1); ProgressView() }.frame(height: 200)
+                    }
+                } else {
+                    // MODO DOCUMENTO (PDF, Excel, Word)
+                    Link(destination: url) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle().fill(Color.blue.opacity(0.1))
+                                    .frame(width: 40, height: 40)
+                                Image(systemName: "doc.text.fill")
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(fileName ?? "Attachment")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                
+                                Text("Tap to download")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.blue.opacity(0.8))
+                        }
+                        .padding(12)
+                        .background(Color.white) // O Color(UIColor.systemBackground)
+                        .cornerRadius(12)
+                        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    }
+                }
+            }
+            .padding(.top, 8)
         }
     }
 }

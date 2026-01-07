@@ -19,14 +19,39 @@ class AuthViewModel: ObservableObject {
 struct ContentView: View {
     @StateObject var viewModel = AuthViewModel()
     
+    // 🔥 CONTROLADOR DE SPLASH:
+    @State private var showSplash = true
+    
     var body: some View {
-        Group {
-            // Si Firebase detecta sesión, vamos a la App Principal
-            if viewModel.userSession != nil {
-                MainTabView()
-            } else {
-                // Si no, mostramos el Login
-                LoginView()
+        ZStack {
+            
+            // CAPA 1: La App Real (Se carga pero espera oculta o aparece tras el splash)
+            if !showSplash {
+                if viewModel.userSession != nil {
+                    // Si hay sesión -> App Principal
+                    MainTabView()
+                        .transition(.opacity)
+                } else {
+                    // Si no hay sesión -> Login
+                    LoginView()
+                        .transition(.opacity)
+                }
+            }
+            
+            // CAPA 2: PANTALLA DE SPLASH (Siempre encima al inicio)
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        // ⚠️ HE QUITADO EL .onTapGesture AQUÍ PORQUE BLOQUEABA LA LISTA
+        .onAppear {
+            // ⏳ TIEMPO DE ESPERA: 3.5 segundos
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                withAnimation(.easeOut(duration: 0.5)) {
+                    self.showSplash = false
+                }
             }
         }
     }
@@ -36,44 +61,64 @@ struct ContentView: View {
 struct MainTabView: View {
     var body: some View {
         TabView {
-            // Pestaña 1: INICIO (Tu nueva pantalla bonita)
+            // Pestaña 1: INICIO
             HomeView()
                 .tabItem {
-                    Label("Inicio", systemImage: "house.fill")
+                    Image("atlas-globe-icon-24")
+                        .renderingMode(.template)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 32, height: 24)
+                    Text("Home")
                 }
-            
-            // Pestaña 2: DIRECTORIO (Para buscar gente y chatear)
+
+            // Pestaña 2: DIRECTORIO
             DirectoryView()
                 .tabItem {
-                    Label("Directorio", systemImage: "person.3.fill")
+                    Label("Directory", systemImage: "person.3.fill")
                 }
-            
+
             // Pestaña 3: DOCUMENTOS
             DocumentsView()
                 .tabItem {
                     Label("Docs", systemImage: "folder.fill")
                 }
-            
-            // Pestaña 4: BROADCAST (Alertas)
+
+            // Pestaña 4: BROADCAST
             BroadcastView()
                 .tabItem {
                     Label("Broadcast", systemImage: "bell.fill")
                 }
-            
-            // Pestaña 5: PERFIL
-            ProfileView()
-                .tabItem {
-                    Label("Perfil", systemImage: "person.crop.circle.fill")
-                }
-            
-            // PESTAÑA 6: CALENDARIO (NUEVO)
+
+            // PESTAÑA 5: CALENDARIO
             CalendarView()
                 .tabItem {
                     Image(systemName: "calendar")
                     Text("Calendar")
                 }
+
+            // PESTAÑA 6: FORMS
+            FormsView()
+                .tabItem {
+                    Image(systemName: "list.clipboard.fill")
+                    Text("Forms")
+                }
+
+            // Pestaña 7: PERFIL
+            ProfileView()
+                .tabItem {
+                    Label("Profile", systemImage: "person.crop.circle.fill")
+                }
         }
-        // Color de acento (Azul corporativo o el que prefieras)
         .accentColor(.blue)
+    }
+}
+
+// ---------------------------------------------------------
+// 🔥 EXTENSIÓN PARA OCULTAR EL TECLADO
+// (La dejamos aquí por si la usamos puntualmente en otro lado, pero ya no afecta globalmente)
+// ---------------------------------------------------------
+extension UIApplication {
+    func endEditing() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
