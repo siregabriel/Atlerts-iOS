@@ -84,13 +84,13 @@ struct MainTabView: View {
             // Pestaña 3: DOCUMENTOS
             DocumentsView()
                 .tabItem {
-                    Label("Docs", systemImage: "folder.fill")
+                    Label("Files", systemImage: "folder.fill")
                 }
 
             // Pestaña 4: BROADCAST
             BroadcastView()
                 .tabItem {
-                    Label("Broadcast", systemImage: "bell.fill")
+                    Label("Broadcast", systemImage: "megaphone.fill")
                 }
 
             // PESTAÑA 5: CALENDARIO
