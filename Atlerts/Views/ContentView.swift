@@ -60,7 +60,7 @@ struct ContentView: View {
         }
     }
 }
-
+//MARK: BARRA DE PESTAÑAS
 // 3. BARRA DE PESTAÑAS (La navegación principal)
 struct MainTabView: View {
     var body: some View {
@@ -137,5 +137,60 @@ extension UIApplication {
         tapGesture.requiresExclusiveTouchType = false
         
         window.addGestureRecognizer(tapGesture)
+    }
+}
+// --- COMPONENTE DE FONDO GIRATORIO PREMIUM ---
+struct RotatingRaysBackground: View {
+    // Variable de estado para controlar la animación
+    @State private var isRotating = false
+
+    var body: some View {
+        ZStack {
+            // 1. CAPA BASE: Degradado Circular Fijo (Luz central)
+            RadialGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 1.0, green: 0.98, blue: 0.8), // Centro Luz Brillante
+                    Color(red: 0.85, green: 0.65, blue: 0.13), // Oro Medio
+                    Color(red: 0.5, green: 0.35, blue: 0.05)   // Borde Oscuro Profundo
+                ]),
+                center: .center,
+                startRadius: 5,
+                endRadius: 600 // Un poco más grande para cubrir bien
+            )
+            
+            // 2. CAPA ANIMADA: Rayos de Gloria Giratorios 🔄
+            GeometryReader { geo in
+                ZStack {
+                    ForEach(0..<12) { i in
+                        Rectangle()
+                            .fill(Color.white.opacity(0.08)) // Un poquito más visibles
+                            .frame(width: 50, height: geo.size.height * 2) // Más anchos y largos
+                            .offset(y: -geo.size.height / 2) // Salen del centro exacto
+                            .rotationEffect(.degrees(Double(i) * 30)) // Distribución circular
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+                // AQUÍ ESTÁ LA MAGIA: Rotación continua
+                .rotationEffect(.degrees(isRotating ? 360 : 0))
+                // Animación lineal, lenta (25s por vuelta) e infinita
+                .animation(
+                    .linear(duration: 25).repeatForever(autoreverses: false),
+                    value: isRotating
+                )
+            }
+            
+            // 3. CAPA TEXTURA: Brillo Metálico Fijo (Diagonal)
+            LinearGradient(
+                gradient: Gradient(colors: [.clear, .white.opacity(0.15), .clear]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.overlay)
+        }
+        .ignoresSafeArea()
+        .onAppear {
+            // Activa la rotación apenas aparece
+            isRotating = true
+        }
     }
 }

@@ -311,11 +311,12 @@ struct SuccessWallView: View {
                     SuccessWallFooter()
                 }
             }
-            
+            //MARK: SPLASH VIEW
             // 🔥 CAPA SUPERIOR: SPLASH CON LAURELES 🌿🏆🌿 🔥
             if showSplash {
                 ZStack {
-                    goldGradient.ignoresSafeArea()
+                    // 🌟 FONDO PREMIUM: DEGRADADO + RAYOS DE LUZ 🌟
+                    RotatingRaysBackground()
                     
                     VStack(spacing: 25) {
                         // EMBLEMA DE VICTORIA
