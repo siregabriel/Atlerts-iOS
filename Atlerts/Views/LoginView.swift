@@ -1,7 +1,7 @@
 //
 //  LoginView.swift
 //  Atlerts
-//
+//  Atlas Senior Living
 //  Created by Gabriel Rosales Montes  on 03/01/26.
 //
 import SwiftUI
@@ -46,13 +46,14 @@ struct LoginView: View {
                         .frame(width: 100, height: 100)
                         .foregroundColor(.white)
                         .padding(.top, 60)
+                        .magicalSparkles()
                     
                     Image("atlerts-name-logo")
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(height: 40)
                                 //.shimmering(duration: 2.0)
-                                .magicalSparkles()
+                                //.magicalSparkles()
                 }
                 .padding(.top, 60)
                 
