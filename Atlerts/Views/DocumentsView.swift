@@ -139,26 +139,35 @@ struct FolderCell: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "folder.fill")
-                    .font(.title)
-                    .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.13)) // Dorado Atlas
-                Spacer()
-            }
-            Spacer()
+            // Icono de Carpeta
+            Image(systemName: "folder.fill")
+                .font(.system(size: 28))
+                .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.13)) // Dorado Atlas
+            
+            // Nombre de Categoría
             Text(categoryName)
                 .font(.headline)
+                .fontWeight(.bold)
                 .foregroundColor(.primary)
-                .lineLimit(1)
+                .lineLimit(2) // Permite 2 líneas si el nombre es largo
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true) // 2. Obliga al texto a expandirse verticalmente si lo necesita
+                .minimumScaleFactor(0.85) // 3. Si la palabra es MUY larga, reduce un poquito la letra para que quepa
+            
+            Spacer() // Empuja el contador hacia abajo
+            
+            // Contador de Items
             Text("\(count) items")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.gray)
         }
-        .padding(16)
-        .frame(height: 110)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16) // (Padding interno de la tarjeta)
+        .background(Color(UIColor.secondarySystemGroupedBackground)) // Color de fondo de la tarjeta
+        .cornerRadius(16) // Bordes redondeados
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1) // Sombra sutil
+        // Asegura que todas las celdas tengan la misma altura mínima
+        .frame(height: 155)
     }
 }
 

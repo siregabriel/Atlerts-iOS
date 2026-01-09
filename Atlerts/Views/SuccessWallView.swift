@@ -351,7 +351,8 @@ struct SuccessWallView: View {
                     }
                 }
                 .zIndex(2)
-                .transition(.opacity.animation(.easeOut(duration: 0.8)))
+                // Asegura que entre y salga desvaneciéndose suavemente (1.2 segundos)
+                .transition(AnyTransition.opacity.animation(.easeInOut(duration: 1.2)))
             }
         }
         // OVERLAY DE ZOOM
