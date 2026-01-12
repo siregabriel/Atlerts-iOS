@@ -9,62 +9,7 @@ import FirebaseFirestore
 import FirebaseAuth
 import Combine
 
-// 1. MODELO DEL MENSAJE
-struct ChatMessage: Identifiable, Codable {
-    @DocumentID var id: String?
-    let fromId: String
-    let toId: String
-    let text: String
-    let timestamp: Date
-}
-
-// 2. VIEW MODEL
-class ChatScreenViewModel: ObservableObject {
-    @Published var messages: [ChatMessage] = []
-    @Published var text = ""
-    
-    let user: AtlertsUser
-    private var db = Firestore.firestore()
-    
-    init(user: AtlertsUser) {
-        self.user = user
-        fetchMessages()
-    }
-    
-    func fetchMessages() {
-        guard let fromId = Auth.auth().currentUser?.uid, let toId = user.uid else { return }
-        let conversationId = fromId < toId ? "\(fromId)_\(toId)" : "\(toId)_\(fromId)"
-        
-        db.collection("conversations")
-            .document(conversationId)
-            .collection("messages")
-            .order(by: "timestamp", descending: false)
-            .addSnapshotListener { snapshot, error in
-                guard let documents = snapshot?.documents else { return }
-                self.messages = documents.compactMap { try? $0.data(as: ChatMessage.self) }
-            }
-    }
-    
-    func sendMessage() {
-        guard let fromId = Auth.auth().currentUser?.uid, let toId = user.uid, !text.isEmpty else { return }
-        let conversationId = fromId < toId ? "\(fromId)_\(toId)" : "\(toId)_\(fromId)"
-        let msg = ChatMessage(fromId: fromId, toId: toId, text: text, timestamp: Date())
-        // Dentro de sendMessage()
-        Haptics.shared.play(.medium) // 👈 Un golpe firme al enviar
-        
-        do {
-            try db.collection("conversations")
-                .document(conversationId)
-                .collection("messages")
-                .addDocument(from: msg)
-            self.text = ""
-        } catch {
-            print("Error enviando mensaje: \(error)")
-        }
-    }
-}
-
-// 🔥 FORMA PERSONALIZADA PARA EL PICO DEL GLOBO
+// FORMA PERSONALIZADA PARA EL PICO DEL GLOBO
 struct ChatBubbleShape: Shape {
     let isCurrentUser: Bool
     
@@ -74,7 +19,7 @@ struct ChatBubbleShape: Shape {
             byRoundingCorners: [
                 .topLeft,
                 .topRight,
-                isCurrentUser ? .bottomLeft : .bottomRight // Redondeamos la esquina contraria al pico
+                isCurrentUser ? .bottomLeft : .bottomRight
             ],
             cornerRadii: CGSize(width: 16, height: 16)
         )
@@ -85,23 +30,26 @@ struct ChatBubbleShape: Shape {
 // 3. VISTA DEL CHAT
 struct ChatView: View {
     let user: AtlertsUser
-    @StateObject var viewModel: ChatScreenViewModel
+    
+    @StateObject var viewModel = ChatViewModel()
     @Environment(\.presentationMode) var presentationMode
     
-    init(user: AtlertsUser) {
-        self.user = user
-        self._viewModel = StateObject(wrappedValue: ChatScreenViewModel(user: user))
-    }
+    // 🔥 NUEVO: Variable para controlar la navegación manual
+    @State private var showProfile = false
     
     var body: some View {
         ZStack {
             // 1. Fondo Blanco Absoluto
             Color.white.ignoresSafeArea()
             
+            // 🔥 TRUCO: Enlace invisible que se activa con la variable 'showProfile'
+            // Esto soluciona que el clic en la barra no funcione.
+            NavigationLink(destination: PublicProfileView(targetUser: user), isActive: $showProfile) {
+                EmptyView()
+            }
+            .hidden() // Lo escondemos, solo sirve de puente
+            
             VStack(spacing: 0) {
-                // Header manual para asegurar estilo
-                /* Nota: Como usamos navigationBarTitleDisplayMode, el sistema pone el header.
-                   Si prefieres uno custom, avísame. Por ahora confiamos en el nativo pero forzado a light. */
                 
                 // LISTA DE MENSAJES
                 ScrollViewReader { proxy in
@@ -109,48 +57,55 @@ struct ChatView: View {
                         LazyVStack(spacing: 12) {
                             ForEach(viewModel.messages) { message in
                                 MessageRow(message: message)
+                                    .id(message.id)
                             }
+                            
+                            Color.clear
+                                .frame(height: 1)
+                                .id("BOTTOM")
                         }
                         .padding()
                     }
+                    .onAppear {
+                        viewModel.configureChat(recipient: user)
+                        scrollToBottom(proxy: proxy)
+                    }
                     .onChange(of: viewModel.messages.count) { _, _ in
-                        if let lastId = viewModel.messages.last?.id {
-                            withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
-                        }
+                        scrollToBottom(proxy: proxy, animated: true)
+                    }
+                    .onReceive(Publishers.keyboardHeight) { _ in
+                        scrollToBottom(proxy: proxy, animated: true)
                     }
                 }
-                
                 .onTapGesture {
                     UIApplication.shared.endEditing()
                 }
                 
-                // 2. BARRA DE ESCRITURA (Diseño arreglado)
+                // 2. BARRA DE ESCRITURA
                 VStack(spacing: 0) {
-                    Divider() // Línea separadora sutil
+                    Divider()
                     HStack(spacing: 12) {
-                        // Campo de texto
                         ZStack(alignment: .leading) {
-                            if viewModel.text.isEmpty {
+                            if viewModel.newMessageText.isEmpty {
                                 Text("Escribe un mensaje...")
-                                    .foregroundColor(.black) // Placeholder GRIS
+                                    .foregroundColor(.black)
                                     .padding(.leading, 18)
                             }
-                            TextField("", text: $viewModel.text)
-                                .foregroundColor(.black) // Texto que escribes NEGRO
+                            TextField("", text: $viewModel.newMessageText)
+                                .foregroundColor(.black)
                                 .padding(12)
                                 .padding(.leading, 6)
-                                // 🔥 AQUI ESTABA EL ERROR: Usamos un gris fijo manual, no de sistema
                                 .background(Color(white: 0.95))
                                 .cornerRadius(20)
-                                // Marco sutil opcional
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20)
                                         .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                                 )
                         }
                         
-                        // Botón Enviar
-                        Button(action: viewModel.sendMessage) {
+                        Button(action: {
+                            viewModel.sendMessage()
+                        }) {
                             Image(systemName: "paperplane.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(.white)
@@ -158,49 +113,110 @@ struct ChatView: View {
                                 .background(Color.blue)
                                 .clipShape(Circle())
                         }
-                        .disabled(viewModel.text.isEmpty)
+                        .disabled(viewModel.newMessageText.isEmpty)
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 10)
-                    .background(Color.white) // Fondo de la barra BLANCO
+                    .background(Color.white)
                 }
             }
         }
-        .navigationTitle(user.name ?? "Chat")
+        // 🔥 BARRA SUPERIOR INTERACTIVA (Ahora usa un Botón real)
         .navigationBarTitleDisplayMode(.inline)
-        .preferredColorScheme(.light) // Fuerza modo claro (Textos negros) en toda la pantalla
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                // Usamos un BUTTON en lugar de NavigationLink directo
+                Button(action: {
+                    showProfile = true // Esto activa el enlace invisible del ZStack
+                }) {
+                    HStack(spacing: 8) {
+                        // Avatar
+                        if let urlStr = user.profileImageURL, let url = URL(string: urlStr) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image.resizable().scaledToFill()
+                                } else {
+                                    Color.gray.opacity(0.3)
+                                }
+                            }
+                            .frame(width: 32, height: 32)
+                            .clipShape(Circle())
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // Nombre
+                        Text(user.name ?? "Chat")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.light)
+    }
+    
+    func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = false) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if animated {
+                withAnimation {
+                    proxy.scrollTo("BOTTOM", anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo("BOTTOM", anchor: .bottom)
+            }
+        }
     }
 }
 
-// 4. BURBUJA DE MENSAJE (Con pico de diálogo)
+// 4. BURBUJA DE MENSAJE
 struct MessageRow: View {
-    let message: ChatMessage
+    let message: Message
     let currentUid = Auth.auth().currentUser?.uid
     
     var body: some View {
-        HStack(alignment: .bottom) { // Alineamos abajo para que los picos coincidan
-            if message.fromId == currentUid {
-                // --- MI MENSAJE (Derecha) ---
+        HStack(alignment: .bottom) {
+            if message.senderId == currentUid {
                 Spacer()
                 Text(message.text)
                     .foregroundColor(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(Color.blue)
-                    // 🔥 Forma con pico a la derecha
                     .clipShape(ChatBubbleShape(isCurrentUser: true))
             } else {
-                // --- OTRO MENSAJE (Izquierda) ---
                 Text(message.text)
-                    .foregroundColor(.black) // Texto Negro
+                    .foregroundColor(.black)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    // 🔥 Color Gris Claro Fijo (Color(white: 0.9))
                     .background(Color(white: 0.90))
-                    // 🔥 Forma con pico a la izquierda
                     .clipShape(ChatBubbleShape(isCurrentUser: false))
                 Spacer()
             }
         }
+    }
+}
+
+// EXTENSIÓN PARA DETECTAR EL TECLADO
+extension Publishers {
+    static var keyboardHeight: AnyPublisher<CGFloat, Never> {
+        let willShow = NotificationCenter.default.publisher(for: UIApplication.keyboardWillShowNotification)
+            .map { $0.keyboardFrameEndUserInfoKey ?? .zero }
+            .map { $0.height }
+        
+        let willHide = NotificationCenter.default.publisher(for: UIApplication.keyboardWillHideNotification)
+            .map { _ in CGFloat(0) }
+        
+        return MergeMany(willShow, willHide)
+            .eraseToAnyPublisher()
+    }
+}
+
+extension Notification {
+    var keyboardFrameEndUserInfoKey: CGRect? {
+        return (userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
     }
 }

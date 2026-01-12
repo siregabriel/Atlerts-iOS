@@ -4,6 +4,7 @@
 //
 //  Created by Gabriel Rosales Montes  on 03/01/26.
 //
+
 import Foundation
 import UIKit
 import Combine
@@ -22,74 +23,75 @@ class ChatViewModel: ObservableObject {
     var chatRoomId: String = ""
     var otherUserName: String = "Messages"
     var otherUserPhoto: String = ""
+    var otherUserId: String = ""
     
-    // CONFIGURAR EL CHAT (Esta es la clave)
-    // Si 'recipient' es nil, asumimos que es el chat de Soporte
-    func configureChat(recipient: AppUser?) {
+    // CONFIGURAR EL CHAT
+    func configureChat(recipient: AtlertsUser?) {
         guard let myUID = Auth.auth().currentUser?.uid else { return }
         
         if let otherUser = recipient {
-            // --- CHAT PRIVADO CON OTRO USUARIO ---
-            self.otherUserName = otherUser.name
+            self.otherUserName = otherUser.name ?? "Usuario"
             self.otherUserPhoto = otherUser.profileImageURL ?? ""
+            if let uid = otherUser.uid {
+                self.otherUserId = uid
+            }
             
-            // Generamos un ID único ordenando los UIDs (Para que A-B sea igual a B-A)
-            let uids = [myUID, otherUser.uid].sorted()
-            self.chatRoomId = uids.joined(separator: "_") // Ejemplo: "abc_xyz"
+            if let otherID = otherUser.uid {
+                let uids = [myUID, otherID].sorted()
+                self.chatRoomId = uids.joined(separator: "_")
+            }
             
         } else {
-            // --- CHAT DE SOPORTE (Lógica anterior) ---
             self.otherUserName = "Soporte Técnico"
-            self.chatRoomId = myUID // Usamos mi propio ID como sala de soporte
+            self.chatRoomId = myUID
+            self.otherUserId = "support_agent"
         }
         
-        // Empezar a escuchar en la sala correcta
         fetchMessages()
+        // Intentamos marcar como leídos inmediatamente al entrar
+        markMessagesAsRead()
     }
     
-    // EN ChatViewModel.swift
-
     func fetchMessages() {
-            // Limpiamos mensajes viejos al cambiar de chat
-            self.messages = []
-            listener?.remove()
-            
-            // Si no hay sala configurada, no hacemos nada
-            if chatRoomId.isEmpty { return }
-            
-            print("🎧 Escuchando chat en sala: \(chatRoomId)")
-            
-            listener = db.collection("chats").document(chatRoomId).collection("messages")
-                .order(by: "timestamp", descending: false)
-                .addSnapshotListener { querySnapshot, error in
-                    guard let documents = querySnapshot?.documents else { return }
+        self.messages = []
+        listener?.remove()
+        
+        if chatRoomId.isEmpty { return }
+        
+        print("🎧 Escuchando chat en sala: \(chatRoomId)")
+        
+        listener = db.collection("chats").document(chatRoomId).collection("messages")
+            .order(by: "timestamp", descending: false)
+            .addSnapshotListener { [weak self] querySnapshot, error in
+                guard let self = self else { return }
+                guard let documents = querySnapshot?.documents else { return }
+                
+                // 1. Cargamos mensajes
+                self.messages = documents.compactMap { doc -> Message? in
+                    let data = doc.data()
+                    let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() ?? Date()
                     
-                    self.messages = documents.compactMap { doc -> Message? in
-                        let data = doc.data()
-                        let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() ?? Date()
-                        
-                        return Message(
-                            id: doc.documentID,
-                            text: data["text"] as? String ?? "",
-                            senderId: data["senderId"] as? String ?? "",
-                            timestamp: timestamp,
-                            // 👇 AQUÍ ESTABA EL ERROR: Agregamos ?? "" para asegurar que sea String
-                            userPhotoURL: data["userPhotoURL"] as? String ?? "",
-                            // 👇 AQUÍ TAMBIÉN: Agregamos un valor por defecto
-                            userName: data["userName"] as? String ?? "Usuario",
-                            
-                            // Este lo dejamos opcional porque la imagen no siempre existe
-                            imageURL: data["imageURL"] as? String
-                        )
-                    }
-                    
-                    // Auto-scroll al final
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.newMessageText = " " // Truco para forzar refresco de UI
-                        self.newMessageText = ""
-                    }
+                    return Message(
+                        id: doc.documentID,
+                        text: data["text"] as? String ?? "",
+                        senderId: data["senderId"] as? String ?? "",
+                        timestamp: timestamp,
+                        userPhotoURL: data["userPhotoURL"] as? String ?? "",
+                        userName: data["userName"] as? String ?? "Usuario",
+                        imageURL: data["imageURL"] as? String
+                    )
                 }
-        }
+                
+                // 🔥 CORRECCIÓN CRÍTICA: Marcar como leído INMEDIATAMENTE (Sin esperar 0.1s)
+                self.markMessagesAsRead()
+                
+                // El truco del refresco de UI lo dejamos aparte, pero ya no bloquea la lectura
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.newMessageText = " "
+                    self.newMessageText = ""
+                }
+            }
+    }
     
     func sendMessage() {
         guard let myUID = Auth.auth().currentUser?.uid else { return }
@@ -98,8 +100,8 @@ class ChatViewModel: ObservableObject {
         let textToSend = newMessageText
         newMessageText = ""
         
-        // Buscamos mis datos actuales para enviarlos con el mensaje
-        db.collection("users").document(myUID).getDocument { snapshot, _ in
+        db.collection("users").document(myUID).getDocument { [weak self] snapshot, _ in
+            guard let self = self else { return }
             let userData = snapshot?.data()
             let myName = userData?["name"] as? String ?? "Usuario"
             let myPhoto = userData?["profileImageURL"] as? String ?? ""
@@ -109,73 +111,85 @@ class ChatViewModel: ObservableObject {
                 "senderId": myUID,
                 "timestamp": Timestamp(date: Date()),
                 "userName": myName,
-                "userPhotoURL": myPhoto
+                "userPhotoURL": myPhoto,
+                "isRead": false,
+                "toId": self.otherUserId
             ]
             
-            // Guardamos en la sala configurada (chatRoomId)
             self.db.collection("chats").document(self.chatRoomId).collection("messages").addDocument(data: data)
         }
     }
     
-// --- 03-JAN-2026 NUEVA FUNCIÓN: ADJUNTAR FOTO ---
-func sendImageMessage(image: UIImage) {
-    guard (Auth.auth().currentUser?.uid) != nil else { return }
-
-    // 1. Comprimir la imagen para que no pese mucho (calidad media 0.5)
-    guard let imageData = image.jpegData(compressionQuality: 0.5) else { return }
-
-    // 2. Crear nombre único para la foto (chat_photos/UUID.jpg)
-    let filename = UUID().uuidString
-    let ref = Storage.storage().reference().child("chat_photos/\(filename).jpg")
-
-    print("⬆️ Uploading picture...")
-
-    // 3. Subir
-    ref.putData(imageData, metadata: nil) { _, error in
-        if let error = error {
-            print("Error uploading chat image: \(error)")
-            return
-        }
-
-        // 4. Obtener el link de descarga
-        ref.downloadURL { url, _ in
-            guard let url = url else { return }
-            self.saveMessageToFirestore(text: "📷 Imagen", imageURL: url.absoluteString)
+    func sendImageMessage(image: UIImage) {
+        guard (Auth.auth().currentUser?.uid) != nil else { return }
+        guard let imageData = image.jpegData(compressionQuality: 0.5) else { return }
+        
+        let filename = UUID().uuidString
+        let ref = Storage.storage().reference().child("chat_photos/\(filename).jpg")
+        
+        ref.putData(imageData, metadata: nil) { _, error in
+            if let error = error { print("Error upload: \(error)"); return }
+            
+            ref.downloadURL { url, _ in
+                guard let url = url else { return }
+                self.saveMessageToFirestore(text: "📷 Imagen", imageURL: url.absoluteString)
+            }
         }
     }
-}
-
-// --- AUXILIAR: GUARDAR EN BASE DE DATOS ---
-// (He movido la lógica de guardar aquí para no repetirla en texto y foto)
-private func saveMessageToFirestore(text: String, imageURL: String? = nil) {
-    guard let myUID = Auth.auth().currentUser?.uid else { return }
-
-    // Buscamos mis datos de perfil para adjuntarlos
-    db.collection("users").document(myUID).getDocument { snapshot, _ in
-        let userData = snapshot?.data()
-        let myName = userData?["name"] as? String ?? "Usuario"
-        let myPhoto = userData?["profileImageURL"] as? String ?? ""
-
-        var data: [String: Any] = [
-            "text": text,
-            "senderId": myUID,
-            "timestamp": Timestamp(date: Date()),
-            "userName": myName,
-            "userPhotoURL": myPhoto
-        ]
-
-        // Si es imagen, agregamos el campo extra
-        if let img = imageURL {
-            data["imageURL"] = img
+    
+    private func saveMessageToFirestore(text: String, imageURL: String? = nil) {
+        guard let myUID = Auth.auth().currentUser?.uid else { return }
+        
+        db.collection("users").document(myUID).getDocument { [weak self] snapshot, _ in
+            guard let self = self else { return }
+            let userData = snapshot?.data()
+            let myName = userData?["name"] as? String ?? "Usuario"
+            let myPhoto = userData?["profileImageURL"] as? String ?? ""
+            
+            var data: [String: Any] = [
+                "text": text,
+                "senderId": myUID,
+                "timestamp": Timestamp(date: Date()),
+                "userName": myName,
+                "userPhotoURL": myPhoto,
+                "isRead": false,
+                "toId": self.otherUserId
+            ]
+            
+            if let img = imageURL { data["imageURL"] = img }
+            
+            self.db.collection("chats").document(self.chatRoomId).collection("messages").addDocument(data: data)
         }
-
-        // Guardamos
-        self.db.collection("chats").document(self.chatRoomId).collection("messages").addDocument(data: data)
-        print("✅ Mensaje enviado")
     }
-}
-
-deinit {
-    listener?.remove()
-}
+    
+    func markMessagesAsRead() {
+        guard let currentUid = Auth.auth().currentUser?.uid else { return }
+        if self.otherUserId.isEmpty { return }
+        
+        let ref = db.collection("chats").document(self.chatRoomId).collection("messages")
+        
+        ref.getDocuments { [weak self] snapshot, error in
+            guard self != nil else { return }
+            guard let documents = snapshot?.documents else { return }
+            
+            for doc in documents {
+                let data = doc.data()
+                let senderId = (data["fromId"] as? String) ?? (data["senderId"] as? String) ?? ""
+                
+                // Solo marcamos si el mensaje NO es mío y NO está leído
+                if senderId != currentUid {
+                    let isRead = data["isRead"] as? Bool ?? false
+                    if !isRead {
+                        // Lo marcamos en silencio (sin print para no saturar consola)
+                        doc.reference.updateData(["isRead": true])
+                    }
+                }
+            }
+        }
+    }
+    
+    deinit {
+        print("☠️ ChatViewModel liberado")
+        listener?.remove()
+    }
 }

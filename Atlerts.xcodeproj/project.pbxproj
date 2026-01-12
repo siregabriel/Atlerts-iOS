@@ -10,6 +10,7 @@
 		E5A3FD6D2F07526E0039AA3D /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = E5A3FD6C2F07526E0039AA3D /* FirebaseAuth */; };
 		E5A3FD6F2F07527B0039AA3D /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = E5A3FD6E2F07527B0039AA3D /* FirebaseStorage */; };
 		E5A3FD712F0752A30039AA3D /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E5A3FD702F0752A30039AA3D /* FirebaseFirestore */; };
+		E5BA52C22F147CE900B08DD3 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = E5BA52C12F147CE900B08DD3 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -87,6 +88,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5BA52C22F147CE900B08DD3 /* FirebaseMessaging in Frameworks */,
 				E5A3FD6D2F07526E0039AA3D /* FirebaseAuth in Frameworks */,
 				E5A3FD6F2F07527B0039AA3D /* FirebaseStorage in Frameworks */,
 				E5A3FD712F0752A30039AA3D /* FirebaseFirestore in Frameworks */,
@@ -161,6 +163,7 @@
 				E5A3FD6C2F07526E0039AA3D /* FirebaseAuth */,
 				E5A3FD6E2F07527B0039AA3D /* FirebaseStorage */,
 				E5A3FD702F0752A30039AA3D /* FirebaseFirestore */,
+				E5BA52C12F147CE900B08DD3 /* FirebaseMessaging */,
 			);
 			productName = Atlerts;
 			productReference = E5F9EB5C2F0590F90092D41B /* Atlerts.app */;
@@ -702,6 +705,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E5A3FD662F074F9A0039AA3D /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		E5BA52C12F147CE900B08DD3 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E5A3FD662F074F9A0039AA3D /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

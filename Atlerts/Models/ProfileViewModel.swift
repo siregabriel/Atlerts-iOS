@@ -19,35 +19,35 @@ class ProfileViewModel: ObservableObject {
     }
     
     func fetchUserProfile() {
-            guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        
+        print("🔍 Buscando usuario: \(uid)") // Pista 1
+        
+        db.collection("users").document(uid).addSnapshotListener { snap, error in
+            if let error = error {
+                print("❌ Error de conexión: \(error.localizedDescription)")
+                return
+            }
             
-            print("🔍 Buscando usuario: \(uid)") // Pista 1
+            guard let document = snap, document.exists else {
+                print("⚠️ El documento del usuario NO EXISTE en Firestore")
+                return
+            }
             
-            db.collection("users").document(uid).addSnapshotListener { snap, error in
-                if let error = error {
-                    print("❌ Error de conexión: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let document = snap, document.exists else {
-                    print("⚠️ El documento del usuario NO EXISTE en Firestore")
-                    return
-                }
-                
-                // IMPRIMIR DATOS CRUDOS (Aquí sabremos la verdad)
-                let datos = document.data() ?? [:]
-                print("📦 DATOS EN LA NUBE: \(datos)")
-                
-                // Intentar decodificar
-                do {
-                    self.user = try document.data(as: AtlertsUser.self)
-                    print("✅ Decodificación EXITOSA. URL en struct: \(self.user?.profileImageURL ?? "NIL")")
-                } catch {
-                    print("💥 ERROR AL LEER EL MODELO: \(error)")
-                    // Esto nos dirá qué campo está fallando (puede que no sea la imagen, sino otro)
-                }
+            // IMPRIMIR DATOS CRUDOS (Aquí sabremos la verdad)
+            let datos = document.data() ?? [:]
+            print("📦 DATOS EN LA NUBE: \(datos)")
+            
+            // Intentar decodificar
+            do {
+                self.user = try document.data(as: AtlertsUser.self)
+                print("✅ Decodificación EXITOSA. URL en struct: \(self.user?.profileImageURL ?? "NIL")")
+            } catch {
+                print("💥 ERROR AL LEER EL MODELO: \(error)")
+                // Esto nos dirá qué campo está fallando (puede que no sea la imagen, sino otro)
             }
         }
+    }
     
     // --- NUEVAS FUNCIONES PARA FOTO DE PERFIL ---
     
@@ -121,5 +121,33 @@ class ProfileViewModel: ObservableObject {
             errorMessage = "Error al cerrar sesión"
         }
     }
-}
+    
+    // AGREGAR ESTO EN: Models/ProfileViewModel.swift
 
+    // Función para obtener datos de OTRO usuario (no el logueado)
+    func getPublicUserProfile(userId: String, completion: @escaping (AtlertsUser?) -> Void) {
+        let db = Firestore.firestore()
+        // SOLUCIÓN APLICADA: Se agregó "completion:" y se cerraron correctamente los paréntesis
+        db.collection("users").document(userId).getDocument(completion: { snapshot, error in
+            guard let data = snapshot?.data(), error == nil else {
+                print("Error al obtener perfil público: \(error?.localizedDescription ?? "")")
+                completion(nil)
+                return
+            }
+            
+            // AQUÍ ASUMO LOS CAMPOS DE TU MODELO 'AtlertsUser'.
+            // AJUSTA SI TUS NOMBRES DE VARIABLES SON DIFERENTES.
+            // CORRECCIÓN: Código limpio y ordenado para evitar errores de sintaxis
+        let publicUser = AtlertsUser(
+            id: userId,
+            uid: userId,
+            name: data["name"] as? String ?? "Usuario",
+            email: data["email"] as? String ?? "",
+            role: data["role"] as? String ?? "user",
+            profileImageURL: data["profileImageURL"] as? String ?? "",
+            community: data["community"] as? String ?? ""
+        )
+        completion(publicUser)
+        })
+    }
+}

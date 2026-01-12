@@ -77,8 +77,9 @@ class UserProfileViewModel: ObservableObject {
     }
 }
 
-// 2. VISTA (DISEÑO ORIGINAL CON MEJORA DE IMAGEN)
+// 2. VISTA (DISEÑO ORIGINAL CON MEJORA DE IMAGEN + REPARACIÓN BADGE)
 struct ProfileView: View {
+    var user: AtlertsUser? = nil
     @StateObject var viewModel = UserProfileViewModel()
     @State private var showImagePicker = false
     @State private var selectedImage: UIImage?
@@ -270,6 +271,18 @@ struct ProfileView: View {
                             }
                             .foregroundColor(.red)
                         }
+                        
+                        // --- BOTÓN TEMPORAL DE REPARACIÓN DE BADGE ---
+                        Button(action: {
+                            fixGhostBadges()
+                        }) {
+                            HStack {
+                                Image(systemName: "wrench.and.screwdriver.fill")
+                                Text("Reparar Badges (Developer)")
+                            }
+                            .foregroundColor(.orange)
+                        }
+                        // ---------------------------------------------
                     }
                 }
             }
@@ -293,6 +306,45 @@ struct ProfileView: View {
                 )
             }
         }
+    }
+    
+    // FUNCIÓN DE REPARACIÓN DE BADGES
+    func fixGhostBadges() {
+        guard let currentUid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        
+        print("🕵️‍♂️ Buscando mensajes no leídos para: \(currentUid)...")
+        
+        // Buscamos en TODAS las colecciones de mensajes de la app
+        db.collectionGroup("messages")
+            .whereField("toId", isEqualTo: currentUid) // Asegúrate que el campo se llame "toId" en tu DB
+            .whereField("isRead", isEqualTo: false)
+            .getDocuments { snap, error in
+                if let error = error {
+                    print("❌ Error buscando: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let docs = snap?.documents, !docs.isEmpty else {
+                    print("✅ No se encontraron mensajes perdidos. Todo limpio.")
+                    return
+                }
+                
+                print("⚠️ Encontrados \(docs.count) mensajes sin leer atascados. Limpiando...")
+                
+                let batch = db.batch()
+                for doc in docs {
+                    batch.updateData(["isRead": true], forDocument: doc.reference)
+                }
+                
+                batch.commit { error in
+                    if let error = error {
+                        print("❌ Error al limpiar: \(error.localizedDescription)")
+                    } else {
+                        print("✨ ¡Éxito! Se han marcado todos como leídos. El badge debería desaparecer.")
+                    }
+                }
+            }
     }
 }
 
