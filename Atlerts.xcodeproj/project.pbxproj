@@ -457,6 +457,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Atlerts;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Necesario para guardar eventos en tu calendario.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Desbloquea para acceder a tus alertas y chats de forma segura.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -505,6 +506,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Atlerts;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "Necesario para guardar eventos en tu calendario.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Desbloquea para acceder a tus alertas y chats de forma segura.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
